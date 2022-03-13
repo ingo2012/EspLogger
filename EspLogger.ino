@@ -47,8 +47,10 @@ DS18B20 ds(26);
 //uint8_t ds18_vorlauf[] = {40, 170, 170, 173, 24, 19, 2, 93}; // DETE
 //uint8_t ds18_rlauf[]   = {40, 170, 177, 151, 24, 19, 2, 2,}; // DETE
 
-uint8_t ds18_rlauf[]   = { 40, 64, 204, 118, 224, 1, 60, 215 };
-uint8_t ds18_vorlauf[] = { 40, 41, 213, 118, 224, 1, 60, 13 };
+uint8_t ds18_rlauf[]   = { 40, 66, 204, 118, 224, 1, 44, 215 };
+uint8_t ds18_vorlauf[] = { 40, 41, 209, 118, 224, 1, 60, 5 };
+
+
 uint8_t selected;
 // Korrekturfaktoren, muessen noch genau bestimmt werden ! Vielfache von 0,0625 !
 float temp_vorlauf_cor = 0.50;
@@ -58,8 +60,8 @@ float temp_rlauf = 0.00;
 
 
 // Zaehler fuer Temp-Messung, nur alle 60 Sekunden messen
-int counter = 61; // Auf 61 damit beim Start gleich gemessen wird , wird dann auf 0 gesetzt 
-int counter_intervall = 60;
+int counter = 60; // Auf 61 damit beim Start gleich gemessen wird , wird dann auf 0 gesetzt 
+int counter_intervall = 59;
 
 // File Setup
 File dataFile;
@@ -72,17 +74,19 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
   Serial.println();
-  /* Nur zum holen der Adresse eines neuen Fuehlers
-  uint8_t address[8];
-  ds.getAddress(address);
-  Serial.print("Get DS18B20 Adresses : ");  
-  for (uint8_t i = 0; i < 8; i++) {
-      Serial.print(" ");
-      Serial.print(address[i]);
-      Serial.print(",");
-    }
-  Serial.println();  
-  */
+  /* Nur zum holen der Adresse eines neuen Fuehlers */
+  while (ds.selectNext()) {
+    uint8_t address[8];
+    ds.getAddress(address);
+    Serial.print("Get DS18B20 Adresses : ");  
+    for (uint8_t i = 0; i < 8; i++) {
+        Serial.print(" ");
+        Serial.print(address[i]);
+        Serial.print(",");
+      }
+    Serial.println();  
+  }  
+  
   /* Anzeige DS18B20 */
   Serial.print("DS18B20 Devices : ");
   Serial.println(ds.getNumberOfDevices());
@@ -152,6 +156,8 @@ void setup() {
      Serial.println("Error opening file for writing");
      return;
   }
+  // Header schreiben
+  dataFile.println("Timestamp;Date;VL;RL");
   dataFile.close();
   
   delay(3000);
@@ -215,7 +221,7 @@ float readTemp(uint8_t sensor[]) {
   if (selected) {
    return(ds.getTempC());
   }  
-  return(-1.0);
+  return(-100.0);
 }
 /* Anzeige der aktuellen Temperaturen */
 void showDisplay(int cnt, float vl, float rl) {
