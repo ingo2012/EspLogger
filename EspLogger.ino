@@ -6,11 +6,20 @@
 // https://www.digikey.de/en/maker/projects/adafruit-data-logger-shield/997ad0fc7f894310b90a82d325a2e0f8
 // Pin Belegung S. 4 https://www.fambach.net/wemos-d1-r32-esp32/
 
+// Access-Point : https://randomnerdtutorials.com/esp32-access-point-ap-web-server/ 
+// https://randomnerdtutorials.com/esp32-web-server-sent-events-sse/
+
 // Include the correct display library
  // For a connection via I2C using Wire include
 #include <Wire.h>  // Only needed for Arduino 1.6.5 and earlier
 #include "SH1106Wire.h"
 #include "SH1106.h"
+
+
+// Wi-Fi library
+#include <WiFi.h> 
+#include <WebServer.h>
+#include <ESPmDNS.h>
 
 // Temp
 #include <DS18B20.h>
@@ -67,7 +76,67 @@ int counter_intervall = 59;
 File dataFile;
 char fileName[19];
 
+// Wifi Setup
+const char* ssid     = "Datalogger-D1";
+const char* password = "start123";
+String header;
 
+// Set web server port number to 80
+WebServer server(80);
+
+const char index_html[] PROGMEM = R"(
+    <!DOCTYPE HTML><html>
+    <head>
+    <title>ESP Web Server</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <style>
+      html {font-family: Arial; display: inline-block; text-align: center;}
+      p { font-size: 1.2rem;}
+      body {  margin: 0;}
+      .topnav { overflow: hidden; background-color: #50B8B4; color: white; font-size: 1rem; }
+      .content { padding: 20px; }
+      .card { background-color: white; box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5); }
+      .cards { max-width: 800px; margin: 0 auto; display: grid; grid-gap: 2rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+      .reading { font-size: 1.4rem; }
+    </style>
+    <html>
+      <head><title>DataLogger-D1</title></head>
+    <body>
+      <div class="topnav">
+        <h1>DataLogger-D1</h1>
+      </div>
+      <div class="content">
+      <div class="cards">
+        <div class="card">
+          <p><i class="fas fa-thermometer-half" style="color:#059e8a;"></i> Vorlauf</p><p><span class="reading"><span id="temp">%VL%</span> &deg;C</span></p>
+        </div>
+        <div class="card">
+          <p><i class="fas fa-tint" style="color:#00add6;"></i> Ruecklauf</p><p><span class="reading"><span id="hum">%RL%</span> &deg;C</span></p>
+        </div>
+        <div class="card">
+          <p><i class="fas fa-angle-double-down" style="color:#e1e437;"></i> Uhrzeit</p><p><span class="reading"><span id="pres">%UHRZEIT%</span></p>
+        </div>
+      </div>
+    </div>
+    </body>
+    </html>
+)";
+
+void alive() {
+  Serial.println("/state (alive)");
+  //server.send(200, "text/html","Ok. NodeMCU is alive");
+  server.send_P(200, "text/html", index_html);
+}
+
+void config_rest_server_routing() {
+    server.on("/", HTTP_GET, []() {
+        //server.send(200, "text/html",
+        //<h1>Welcome to the ESP32 DataLogger-D1</h1>");
+       server.send_P(200, "text/html", index_html);     
+    });
+    server.on("/state", HTTP_GET, alive);
+}
 
 void setup() {
   //Seriell - Debug aktivieren
@@ -159,6 +228,41 @@ void setup() {
   // Header schreiben
   dataFile.println("Timestamp;Date;VL;RL");
   dataFile.close();
+
+  // Wifi-Setup
+  Serial.print("Setting AP (Access Point)…");
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid, password);
+
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+
+  /*
+  WiFi.mode(WIFI_AP);
+  WiFi.begin(ssid, password);
+  // Wait for connection
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+  */
+  // Activate mDNS this is used to be able to connect to the server
+  // with local DNS hostmane esp8266.local
+  //if (MDNS.begin("esp8266")) {
+  //  Serial.println("MDNS responder started");
+  //}
+  
+  /*
+  WiFi.softAP(ssid, password);
+  
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+  */
+  config_rest_server_routing();
+  server.begin();
   
   delay(3000);
   // Start 
@@ -166,6 +270,7 @@ void setup() {
 }
 
 void loop() {
+  server.handleClient();
   //int remainingTimeBudget = ui.update();
   counter++;
   if (counter > counter_intervall) {
@@ -177,7 +282,7 @@ void loop() {
   
   showDisplay(counter,temp_vorlauf,temp_rlauf);
   delay(1000);
-  
+      
 }
 
 // Oeffnet File im AppendMode und schreibt die Daten
@@ -238,3 +343,8 @@ void showDisplay(int cnt, float vl, float rl) {
   display.drawString(x_pos, (3*y_step), "File:"+ String(fileName));
   display.display();
 }
+
+
+
+
+  
