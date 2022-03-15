@@ -8,6 +8,7 @@
 
 // Access-Point : https://randomnerdtutorials.com/esp32-access-point-ap-web-server/ 
 // https://randomnerdtutorials.com/esp32-web-server-sent-events-sse/
+// https://circuits4you.com/2018/11/20/web-server-on-esp32-how-to-update-and-display-sensor-values/
 
 // Include the correct display library
  // For a connection via I2C using Wire include
@@ -19,7 +20,8 @@
 // Wi-Fi library
 #include <WiFi.h> 
 #include <WebServer.h>
-#include <ESPmDNS.h>
+#include <ArduinoJson.h>
+#include "index.h"  //Web page header file
 
 // Temp
 #include <DS18B20.h>
@@ -84,58 +86,36 @@ String header;
 // Set web server port number to 80
 WebServer server(80);
 
-const char index_html[] PROGMEM = R"(
-    <!DOCTYPE HTML><html>
-    <head>
-    <title>ESP Web Server</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="data:,">
-    <style>
-      html {font-family: Arial; display: inline-block; text-align: center;}
-      p { font-size: 1.2rem;}
-      body {  margin: 0;}
-      .topnav { overflow: hidden; background-color: #50B8B4; color: white; font-size: 1rem; }
-      .content { padding: 20px; }
-      .card { background-color: white; box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5); }
-      .cards { max-width: 800px; margin: 0 auto; display: grid; grid-gap: 2rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-      .reading { font-size: 1.4rem; }
-    </style>
-    <html>
-      <head><title>DataLogger-D1</title></head>
-    <body>
-      <div class="topnav">
-        <h1>DataLogger-D1</h1>
-      </div>
-      <div class="content">
-      <div class="cards">
-        <div class="card">
-          <p><i class="fas fa-thermometer-half" style="color:#059e8a;"></i> Vorlauf</p><p><span class="reading"><span id="temp">%VL%</span> &deg;C</span></p>
-        </div>
-        <div class="card">
-          <p><i class="fas fa-tint" style="color:#00add6;"></i> Ruecklauf</p><p><span class="reading"><span id="hum">%RL%</span> &deg;C</span></p>
-        </div>
-        <div class="card">
-          <p><i class="fas fa-angle-double-down" style="color:#e1e437;"></i> Uhrzeit</p><p><span class="reading"><span id="pres">%UHRZEIT%</span></p>
-        </div>
-      </div>
-    </div>
-    </body>
-    </html>
-)";
-
-void alive() {
+void state() {
   Serial.println("/state (alive)");
-  //server.send(200, "text/html","Ok. NodeMCU is alive");
-  server.send_P(200, "text/html", index_html);
+  String s = MAIN_page; //Read HTML contents
+  server.send(200, "text/html", s); //Send web page
+}
+
+void handleADC() {
+  Serial.println("/handleADC (readADC)");
+  char buf[150];
+  char timeBuf[30];
+  DateTime now = rtc.now();
+  sprintf(timeBuf, "%.2d:%.2d:%.2d", now.hour(), now.minute(),now.second());
+  DynamicJsonDocument doc(1024);
+  doc["vorlauf"] = String(temp_vorlauf);
+  doc["rlauf"] = String(temp_rlauf);
+  doc["uhrzeit"]   = String(timeBuf);;
+  serializeJson(doc, buf);
+  Serial.println(buf);
+  server.send(200, "application/json", buf);
 }
 
 void config_rest_server_routing() {
     server.on("/", HTTP_GET, []() {
         //server.send(200, "text/html",
         //<h1>Welcome to the ESP32 DataLogger-D1</h1>");
-       server.send_P(200, "text/html", index_html);     
+       // server.send_P(200, "text/html", index_html);     
+       state();
     });
-    server.on("/state", HTTP_GET, alive);
+    server.on("/state", HTTP_GET, state);
+    server.on("/readADC", handleADC);
 }
 
 void setup() {
@@ -238,32 +218,8 @@ void setup() {
   Serial.print("AP IP address: ");
   Serial.println(IP);
 
-  /*
-  WiFi.mode(WIFI_AP);
-  WiFi.begin(ssid, password);
-  // Wait for connection
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-  */
-  // Activate mDNS this is used to be able to connect to the server
-  // with local DNS hostmane esp8266.local
-  //if (MDNS.begin("esp8266")) {
-  //  Serial.println("MDNS responder started");
-  //}
-  
-  /*
-  WiFi.softAP(ssid, password);
-  
-  IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(IP);
-  */
   config_rest_server_routing();
   server.begin();
-  
   delay(3000);
   // Start 
   
@@ -271,11 +227,10 @@ void setup() {
 
 void loop() {
   server.handleClient();
-  //int remainingTimeBudget = ui.update();
+  temp_vorlauf = readTemp(ds18_vorlauf) + temp_vorlauf_cor;
+  temp_rlauf = readTemp(ds18_rlauf) + temp_rlauf_cor;
   counter++;
   if (counter > counter_intervall) {
-    temp_vorlauf = readTemp(ds18_vorlauf) + temp_vorlauf_cor;
-    temp_rlauf = readTemp(ds18_rlauf) + temp_rlauf_cor;
     counter = 0 ;
     writeDataToFile(temp_vorlauf,temp_rlauf);
   }
