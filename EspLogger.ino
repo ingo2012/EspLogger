@@ -6,11 +6,22 @@
 // https://www.digikey.de/en/maker/projects/adafruit-data-logger-shield/997ad0fc7f894310b90a82d325a2e0f8
 // Pin Belegung S. 4 https://www.fambach.net/wemos-d1-r32-esp32/
 
+// Access-Point : https://randomnerdtutorials.com/esp32-access-point-ap-web-server/ 
+// https://randomnerdtutorials.com/esp32-web-server-sent-events-sse/
+// https://circuits4you.com/2018/11/20/web-server-on-esp32-how-to-update-and-display-sensor-values/
+
 // Include the correct display library
  // For a connection via I2C using Wire include
 #include <Wire.h>  // Only needed for Arduino 1.6.5 and earlier
 #include "SH1106Wire.h"
 #include "SH1106.h"
+
+
+// Wi-Fi library
+#include <WiFi.h> 
+#include <WebServer.h>
+#include <ArduinoJson.h>
+#include "index.h"  //Web page header file
 
 // Temp
 #include <DS18B20.h>
@@ -67,7 +78,45 @@ int counter_intervall = 59;
 File dataFile;
 char fileName[19];
 
+// Wifi Setup
+const char* ssid     = "Datalogger-D1";
+const char* password = "start123";
+String header;
 
+// Set web server port number to 80
+WebServer server(80);
+
+void state() {
+  Serial.println("/state (alive)");
+  String s = MAIN_page; //Read HTML contents
+  server.send(200, "text/html", s); //Send web page
+}
+
+void handleADC() {
+  Serial.println("/handleADC (readADC)");
+  char buf[150];
+  char timeBuf[30];
+  DateTime now = rtc.now();
+  sprintf(timeBuf, "%.2d:%.2d:%.2d", now.hour(), now.minute(),now.second());
+  DynamicJsonDocument doc(1024);
+  doc["vorlauf"] = String(temp_vorlauf);
+  doc["rlauf"] = String(temp_rlauf);
+  doc["uhrzeit"]   = String(timeBuf);;
+  serializeJson(doc, buf);
+  Serial.println(buf);
+  server.send(200, "application/json", buf);
+}
+
+void config_rest_server_routing() {
+    server.on("/", HTTP_GET, []() {
+        //server.send(200, "text/html",
+        //<h1>Welcome to the ESP32 DataLogger-D1</h1>");
+       // server.send_P(200, "text/html", index_html);     
+       state();
+    });
+    server.on("/state", HTTP_GET, state);
+    server.on("/readADC", handleADC);
+}
 
 void setup() {
   //Seriell - Debug aktivieren
@@ -159,25 +208,36 @@ void setup() {
   // Header schreiben
   dataFile.println("Timestamp;Date;VL;RL");
   dataFile.close();
-  
+
+  // Wifi-Setup
+  Serial.print("Setting AP (Access Point)…");
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid, password);
+
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+
+  config_rest_server_routing();
+  server.begin();
   delay(3000);
   // Start 
   
 }
 
 void loop() {
-  //int remainingTimeBudget = ui.update();
+  server.handleClient();
+  temp_vorlauf = readTemp(ds18_vorlauf) + temp_vorlauf_cor;
+  temp_rlauf = readTemp(ds18_rlauf) + temp_rlauf_cor;
   counter++;
   if (counter > counter_intervall) {
-    temp_vorlauf = readTemp(ds18_vorlauf) + temp_vorlauf_cor;
-    temp_rlauf = readTemp(ds18_rlauf) + temp_rlauf_cor;
     counter = 0 ;
     writeDataToFile(temp_vorlauf,temp_rlauf);
   }
   
   showDisplay(counter,temp_vorlauf,temp_rlauf);
   delay(1000);
-  
+      
 }
 
 // Oeffnet File im AppendMode und schreibt die Daten
@@ -238,3 +298,8 @@ void showDisplay(int cnt, float vl, float rl) {
   display.drawString(x_pos, (3*y_step), "File:"+ String(fileName));
   display.display();
 }
+
+
+
+
+  
