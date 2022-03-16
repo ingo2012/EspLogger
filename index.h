@@ -60,6 +60,10 @@ const char MAIN_page[] PROGMEM = R"=====(
     setInterval(requestData, 5000);
 
     function requestData() {
+<<<<<<< HEAD
+=======
+
+>>>>>>> 276c8e659de7ea92961ec5406d1ed2777aaae444
       var xhr = new XMLHttpRequest();
       xhr.open('GET', '/readADC');
 
