@@ -9,6 +9,7 @@
 // Access-Point : https://randomnerdtutorials.com/esp32-access-point-ap-web-server/ 
 // https://randomnerdtutorials.com/esp32-web-server-sent-events-sse/
 // https://circuits4you.com/2018/11/20/web-server-on-esp32-how-to-update-and-display-sensor-values/
+// https://techtutorialsx.com/2016/10/22/esp8266-webserver-getting-query-parameters/
 
 // Include the correct display library
  // For a connection via I2C using Wire include
@@ -31,12 +32,11 @@
 #include "SD.h"
 #include "SPI.h"
 
-// RTC
-#include "RTClib.h"
-
 // Include the UI lib
 #include "OLEDDisplayUi.h"
 
+// RTC
+#include "RTClib.h"
 // RTC
 RTC_DS1307 rtc;
 
@@ -60,10 +60,6 @@ DS18B20 ds(26);
 
 uint8_t ds18_rlauf[]   = { 40, 64, 204, 118, 224, 1, 60, 215 };
 uint8_t ds18_vorlauf[] = { 40, 41, 213, 118, 224, 1, 60, 13 };
-
-
-
-
 
 uint8_t selected;
 // Korrekturfaktoren, muessen noch genau bestimmt werden ! Vielfache von 0,0625 !
@@ -95,8 +91,8 @@ void state() {
   server.send(200, "text/html", s); //Send web page
 }
 
-void handleADC() {
-  Serial.println("/handleADC (readADC)");
+void readTemperaure() {
+  Serial.println("/readTemperaure");
   char buf[150];
   char timeBuf[30];
   DateTime now = rtc.now();
@@ -110,6 +106,23 @@ void handleADC() {
   server.send(200, "application/json", buf);
 }
 
+void setRTCfromBrowser() {
+ // ToDo: set RTC
+  String message = "";
+  unsigned long int pctime = 0L;
+  
+  if (server.arg("time")== "") {
+    Serial.println("time-parameter not found");
+  } else {
+    message=server.arg("time");
+    Serial.println("Set Time to "+message);
+    Serial.println(pctime);
+    pctime = atol(message.c_str());
+    rtc.adjust(pctime);
+  }
+  state();
+}
+
 void config_rest_server_routing() {
     server.on("/", HTTP_GET, []() {
         //server.send(200, "text/html",
@@ -118,7 +131,8 @@ void config_rest_server_routing() {
        state();
     });
     server.on("/state", HTTP_GET, state);
-    server.on("/readADC", handleADC);
+    server.on("/readTemperaure", readTemperaure);
+    server.on("/setRTCfromBrowser", setRTCfromBrowser);
 }
 
 void setup() {
