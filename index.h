@@ -62,7 +62,7 @@ const char MAIN_page[] PROGMEM = R"=====(
   </div>
   <br> 
   <div class="cards">
-    <a class="link_button" id="timeLink2" href="#">Time Link</button></a>
+    <a class="link_button" id="timeLink2" href="/downloadFile">Download</button></a>
     <a class="link_button" id="timeLink" href="#">Set Time</button></a>
   </div>
 </div>

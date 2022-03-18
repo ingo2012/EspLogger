@@ -107,7 +107,7 @@ void readTemperaure() {
 }
 
 void setRTCfromBrowser() {
- // ToDo: set RTC
+  Serial.println("/setRTCfromBrowser");
   String message = "";
   unsigned long int pctime = 0L;
   
@@ -123,6 +123,19 @@ void setRTCfromBrowser() {
   state();
 }
 
+void downloadFile() {
+  Serial.println("/downloadFile");
+  String dataType = "text/csv";
+  dataFile = SD.open("/"+String(fileName), "r");  
+  if (!dataFile) {
+     Serial.println("Error opening file for writing");
+     return;
+  }
+  if (server.streamFile(dataFile, dataType) != dataFile.size())   {  }
+  dataFile.close();
+}
+
+
 void config_rest_server_routing() {
     server.on("/", HTTP_GET, []() {
         //server.send(200, "text/html",
@@ -133,6 +146,7 @@ void config_rest_server_routing() {
     server.on("/state", HTTP_GET, state);
     server.on("/readTemperaure", readTemperaure);
     server.on("/setRTCfromBrowser", setRTCfromBrowser);
+    server.on("/downloadFile", downloadFile);
 }
 
 void setup() {
